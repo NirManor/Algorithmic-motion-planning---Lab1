@@ -1,4 +1,10 @@
 import numpy as np
+import math
+
+X = 0
+Y = 1
+Z = 2
+MIN_RESOLUTION = 3
 
 class Building_Blocks(object):
     '''
@@ -18,24 +24,69 @@ class Building_Blocks(object):
         sample random configuration
         @param goal_conf - the goal configuration
         """
-        # TODO 
-        # hint - use self.ur_params.mechamical_limits
+        # TODO        
+        #samples a value for the joint. If the random number is less than p_bias, 
+        #it samples from the goal configuration for that joint. 
+        #Otherwise, it samples randomly within the joint limits.
+    
+        if np.random.rand() < self.p_bias:
+            return goal_conf
+        else:# With probability 1 - p_bias, sample randomly within joint limits
+            conf = []
+            for joint, joint_limits in self.mechamical_limits.items():            
+                lower_limit, upper_limit = joint_limits[0], joint_limits[1]
+                conf[joint] = np.random.uniform(lower_limit, upper_limit)
         
-        # return np.array(conf)
-        
-
+        return np.array(conf)
+           
+    
     def is_in_collision(self, conf) -> bool:
-        """check for collision in given configuration, arm-arm and arm-obstacle
+        """
+        check for collision in given configuration, arm-arm and arm-obstacle
         return True if in collision
         @param conf - some configuration 
         """
-        # TODO 
-        # hint: use self.transform.conf2sphere_coords(), self.ur_params.sphere_radius, self.env.obstacles
+        # TODO         
+        #self.transform.conf2sphere_coords - returns the coordinates of the spheres along the manipulator's links 
+        #for a given configuration, in the base_link frame
         global_sphere_coords = self.transform.conf2sphere_coords(conf)
+        global_sphere_coords_copy = global_sphere_coords.copy()
+        keys_list = list(global_sphere_coords_copy.keys())
+        del global_sphere_coords_copy[keys_list[0]]
+
+        sphere_radius = self.ur_params.sphere_radius
+
+        is_collision = False
         # arm - arm collision
-        
-        # arm - obstacle collision   
-        
+        for joint_1, spheres_1 in global_sphere_coords.items():
+            if len(global_sphere_coords_copy) <= 1:
+                break
+            
+            keys_list = list(global_sphere_coords_copy.keys())
+            del global_sphere_coords_copy[keys_list[0]]
+            for joint_2, spheres_2 in global_sphere_coords_copy.items():
+                for sphere_1 in spheres_1:
+                    for sphere_2 in spheres_2:
+                        is_collision = check_if_sphere_intersect(sphere_1[:3], sphere_radius[joint_1], 
+                                                                sphere_2[:3], sphere_radius[joint_2])
+                        if is_collision:
+                            return True
+
+        # arm - obstacle collision 
+        obstacles = self.env.obstacles
+        for joint, spheres in global_sphere_coords.items():
+            for sphere in spheres:
+                for obs in obstacles:
+                    is_collision = check_if_sphere_intersect(sphere[:3], sphere_radius[joint], 
+                                                            obs, self.env.radius)
+                    is_collision_floor = check_if_sphere_intersect(sphere[:3], sphere_radius[joint], 
+                                                            (obs[0], obs[1], 0), self.env.radius)
+                    #if sphere[2] < 0
+                    if is_collision or is_collision_floor:
+                        return True
+
+        return False
+
     
     def local_planner(self, prev_conf ,current_conf) -> bool:
         '''check for collisions between two configurations - return True if trasition is valid
@@ -43,8 +94,19 @@ class Building_Blocks(object):
         @param current_conf - current configuration
         '''
         # TODO 
-        # hint: use self.is_in_collision()
+        # Generate intermediate configurations between prev_conf and current_conf
+        dist_prev_curr = np.linalg.norm(current_conf - prev_conf)
+        num_intermediate_configs = max(int(np.ceil(dist_prev_curr / self.resolution)), MIN_RESOLUTION)
+        intermediate_configs = np.linspace(prev_conf, current_conf, num_intermediate_configs)
+
+        # Check for collisions in intermediate configurations
+        for intermediate_conf in intermediate_configs:
+            if self.is_in_collision(intermediate_conf):
+                #print_resolution_numConfig(self.resolution, num_intermediate_configs, False)
+                return False  # Collision detected, transition is invalid
         
+        #print_resolution_numConfig(self.resolution, num_intermediate_configs, True)
+        return True   # No collision detected, transition is valid
     
     def edge_cost(self, conf1, conf2):
         '''
@@ -55,7 +117,26 @@ class Building_Blocks(object):
         return np.dot(self.cost_weights, np.power(conf1-conf2,2)) ** 0.5
     
     
-
+#our function
+def check_if_sphere_intersect(sphere_1, r_1, sphere_2, r_2) -> bool:
+    """
+    Calculates the distance between the centers of the spheres. 
+    If this distance is less than or equal to the sum of the radii of the spheres, 
+    then the spheres intersect and returns True"""
+      
+    distance = np.linalg.norm(sphere_1 - sphere_2)
     
+    sum_of_radii = r_1 + r_2
+
+    if distance <= sum_of_radii:
+        return True
+    else:
+        return False
+
+ #our function
+def print_resolution_numConfig(resolution, num_intermediate_configs, is_collision):
+    print("For self.resolution of {0} the number of intermediate "
+        "configuration that were checked is: {1}, and the local "
+        "planner returns {2}".format(resolution, num_intermediate_configs, is_collision))
     
     
