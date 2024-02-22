@@ -79,14 +79,12 @@ class Building_Blocks(object):
                 for obs in obstacles:
                     is_collision = check_if_sphere_intersect(sphere[:3], sphere_radius[joint], 
                                                             obs, self.env.radius)
-                    is_collision_floor = check_if_sphere_intersect(sphere[:3], sphere_radius[joint], 
-                                                            (obs[0], obs[1], 0), self.env.radius)
-                    #if sphere[2] < 0
+                    is_collision_floor = check_is_floor_collision(sphere[2], sphere_radius[joint], joint)
+                    
                     if is_collision or is_collision_floor:
                         return True
 
         return False
-
     
     def local_planner(self, prev_conf ,current_conf) -> bool:
         '''check for collisions between two configurations - return True if trasition is valid
@@ -138,5 +136,11 @@ def print_resolution_numConfig(resolution, num_intermediate_configs, is_collisio
     print("For self.resolution of {0} the number of intermediate "
         "configuration that were checked is: {1}, and the local "
         "planner returns {2}".format(resolution, num_intermediate_configs, is_collision))
-    
+
+#our function
+def check_is_floor_collision(z_coord, radii, curr_joint):
+    if curr_joint != 'shoulder_link':
+         if (z_coord - radii) <= 0:
+            return True
+    return False
     

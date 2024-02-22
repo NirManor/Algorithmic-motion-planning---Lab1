@@ -27,7 +27,8 @@ def main():
         # TODO
         # ADD YOUR CODE HERE
         start_time = time.time()
-        false_negative_count = 0        
+        #false_negative_count = 0
+        false_positive_count = 0
 
         for index, sample in enumerate(random_samples):
             is_collision = bb.is_in_collision(sample)
@@ -38,10 +39,15 @@ def main():
                     ground_truth.append(0)
             else:
                 #the CD returns that there isn't a collision while there is in the real world.
-                if not is_collision and ground_truth[index]:
-                    false_negative_count += 1
+                """if not is_collision and ground_truth[index]:
+                    false_negative_count += 1"""
+                #the CD returns that there is a collision while there isn't in the real world.
+                if is_collision and not ground_truth[index]:
+                    false_positive_count += 1
+                
 
-        is_collision_instances.append(false_negative_count)
+        #is_collision_instances.append(false_negative_count)
+        is_collision_instances.append(false_positive_count)
 
         end_time = time.time()
         times.append(end_time - start_time)
